@@ -1,0 +1,562 @@
+Winson + Justin
+class Assembler {
+//splitstringbywhitespace to check tuples
+//endline simplification for ending of both tuple and string
+//enum so that when you're running instructions you don't have numbers but letters instead
+//bad token? return bad syntax error msg
+//analyze after to see if the tokens make sense
+//change nested loops and staircases
+//subtract 1 from some instructions
+
+let instructions :[String: Int] = ["halt":0, "clrr":1, "clrx":2, "clrm":3, "clrb":4, "movir":5,
+                                  "movrr":6, "movrm":7, "movmr":8, "movxr":9, "movar":10, "movb":11,
+                                  "addir":12, "addrr":13, "addmr":14, "addxr":15, "subir":16, "subrr":17,
+                                  "submr":18, "subxr":19, "mulir":20, "mulrr": 21, "mulmr": 22, "mulxr":23,
+                                  "divir":24, "divrr":25, "divmr":26, "divxr":27, "jmp":28, "sojz":29,
+                                  "sojnz":30, "aojz":31, "aojnz":32, "cmpir": 33, "cmprr":34, "cmpmr":35,
+                                  "jmpn":36, "jmpz":37, "jmpp":38, "jsr":39, "ret":40, "push":41,
+                                  "pop":42, "stackc":43, "outci":44, "outcr":45, "outcx":46, "outcb":47,
+                                  "readi":48, "printi":49, "readc":50, "readln":51, "brk":52, "movrx":53,
+                                  "movxx":54, "outs":55, "nop":56, "jmpne":57]
+
+let instructandParam : [String: String] = ["halt": "", "clrr": "r", "clrx": "r", "clrm": "l", "clrb": "rr",
+ "movir": "ir", "movrr": "rr", "movrm": "rl", "movmr": "lr", "movxr": "rr", "movar": "lr", "movb": "rrr",
+ "addir": "ir", "addrr": "rr", "addmr": "lr", "addxr": "rr", "subir": "ir", "subrr": "rr", "submr": "lr", "subxr": "rr",
+ "mulir": "ir", "mulrr": "rr", "mulmr": "lr", "mulxr": "rr", "divir": "ir", "divrr": "rr", "divmr": "lr",
+ "divxr": "rr", "jmp": "l", "sojz": "rl", "sojnz": "rl", "aojz": "rl", "aojnz": "rl", "cmpir": "ir",
+ "cmprr": "rr", "cmpmr": "lr", "jmpn": "l", "jmpz": "l", "jmpp": "l", "jsr": "l", "ret": "", "push": "r",
+ "pop": "r", "stackc": "r", "outci": "i", "outcr": "r", "outcx": "r", "outcb": "rr", "readi": "rr",
+ "printi": "r", "readc": "r", "readln": "lr", "brk": "", "movrx": "rr", "movxx": "rr", "outs": "l", "nop": "",
+ "jmpne": "l"]
+
+var symbTable: [String: Int]
+
+let directandParam : [String: String] = [".start": "l", ".end": "", ".integer": "i", ".tuple": "t", ".string": "s"]
+
+let contentsOfText: String?
+var writeLstFile = ""
+var writeBinFile = ""
+var memLoc = 0
+var tokens : [Token]
+var numbError = 0
+
+init(filePath: String) {
+tokens = [Token]()
+symbTable = [String: Int]()
+contentsOfText = readTextFile(filePath)
+}
+
+
+func Driver() {
+if (contentsOfText == nil) {
+print("Cannot read file.")
+}
+else {
+for line in splitStringIntoLines(contentsOfText!) {
+let beginTokenize = Tokenizer(input: line)
+tokens = beginTokenize.makeTok()
+//incrementMemLoc(tokens)
+//print(tokens)
+//print(memLoc)
+checkForParamErrors(true)
+}
+if (numbError > 0){
+print("Check For Errors")
+return
+}
+writeLstFile = ""
+for line in splitStringIntoLines(contentsOfText!) {
+let beginTokenize = Tokenizer(input: line)
+tokens = beginTokenize.makeTok()
+checkForParamErrors(false)
+}
+print(writeLstFile)
+print(symbTable)
+}
+}
+
+/*func incrementMemLoc() {
+for token in tokens {
+if (String(token.type) != "ImmediateString" && String(token.type) != "ImmediateTuple") {
+memLoc += 1
+}
+else if (String()){
+
+}
+}
+}*/
+
+func checkForParamErrors(firstPass: Bool) {
+var directOrInstructLoc = tokens.startIndex
+for token in tokens {
+if (String(token.type) == "Directive" || token.stringValue![token.stringValue!.startIndex] == ".") {
+matchingDirParams(directandParam[token.stringValue!], directOrInstructLoc: directOrInstructLoc, firstPass: firstPass)
+}
+else if (String(token.type) == "Instruction" || (instructandParam[(token.stringValue!)] == nil && String(token.type) == "BadToken")) {
+matchingInstructParams(instructandParam[token.stringValue!], directOrInstructLoc: directOrInstructLoc, token: token, firstPass: firstPass)
+}
+directOrInstructLoc += 1
+}
+}
+
+func matchingInstructParams(instructParam: String?, directOrInstructLoc: Int, token: Token,firstPass: Bool) {
+if (instructParam == "") {
+checkBlankInstruct(directOrInstructLoc,firstPass: firstPass)
+}
+else if (instructParam == "r") {
+checkSingleRInstruct(directOrInstructLoc, firstPass: firstPass)
+}
+else if (instructParam == "i") {
+checkIntegerInstruct(directOrInstructLoc, firstPass: firstPass)
+}
+else if (instructParam == "rr"){
+checkDoubleRInstruct(directOrInstructLoc, firstPass: firstPass)
+}
+else if (instructParam == "ir") {
+checkIRInstruct(directOrInstructLoc, firstPass: firstPass)
+}
+else if (instructParam == "rl") {
+checkRLInstruct(directOrInstructLoc, firstPass: firstPass)
+}
+else if (instructParam == "lr") {
+checkLRInstruct(directOrInstructLoc, firstPass: firstPass)
+}
+else if (instructParam == "l") {
+checkLabelInstruct(directOrInstructLoc, firstPass: firstPass)
+}
+}
+
+func checkLRInstruct(directOrInstructLoc: Int,firstPass: Bool) {
+if (String(tokens[tokens.startIndex].type) == "LabelDefinition" && firstPass) {
+symbTable[tokens[tokens.startIndex].stringValue!] = memLoc
+}
+if (tokens.endIndex > 1) {
+if (String(tokens[directOrInstructLoc + 1].type) == "Label" && String(tokens[directOrInstructLoc + 2].type) == "Register") {
+if(!firstPass){
+writeLstFile += String(memLoc) + ": "
+writeLstFile += String(instructions[tokens[directOrInstructLoc].stringValue!]!) + " "
+writeLstFile += String(symbTable[tokens[directOrInstructLoc + 1].stringValue! + ":"]!) + " "
+writeLstFile += String(tokens[directOrInstructLoc + 2].intValue!) + " "
+}
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n"
+memLoc += 3
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n" + "..........Wrong Or No Parameters for Instruction" + "\n"
+numbError += 1
+}
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += "\n" + "..........Wrong Or No Parameters for Instruction" + "\n"
+numbError += 1
+}
+}
+}
+
+func checkIRInstruct(directOrInstructLoc: Int,firstPass: Bool) {
+if (String(tokens[tokens.startIndex].type) == "LabelDefinition" && firstPass) {
+symbTable[tokens[tokens.startIndex].stringValue!] = memLoc
+}
+if (tokens.endIndex > 1) {
+if (String(tokens[directOrInstructLoc + 1].type) == "ImmediateInteger" && String(tokens[directOrInstructLoc + 2].type) == "Register") {
+if(!firstPass){
+writeLstFile += String(memLoc) + ": "
+writeLstFile += String(instructions[tokens[directOrInstructLoc].stringValue!]!) + " "
+writeLstFile += String(tokens[directOrInstructLoc + 1].intValue!) + " "
+writeLstFile += String(tokens[directOrInstructLoc + 2].intValue!) + " "
+}
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n"
+memLoc += 3
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n" + "..........Wrong Or No Parameters for Instruction" + "\n"
+numbError += 1
+}
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += "\n" + "..........Wrong Or No Parameters for Instruction" + "\n"
+numbError += 1
+}
+}
+}
+
+func checkRLInstruct(directOrInstructLoc: Int,firstPass: Bool) {
+if (String(tokens[tokens.startIndex].type) == "LabelDefinition" && firstPass) {
+symbTable[tokens[tokens.startIndex].stringValue!] = memLoc
+}
+if (tokens.endIndex > 1) {
+if (String(tokens[directOrInstructLoc + 1].type) == "Register" && String(tokens[directOrInstructLoc + 2].type) == "Label") {
+if(!firstPass){
+writeLstFile += String(memLoc) + ": "
+writeLstFile += String(instructions[tokens[directOrInstructLoc].stringValue!]!) + " "
+writeLstFile += String(tokens[directOrInstructLoc + 1].intValue!) + " "
+writeLstFile += String(symbTable[tokens[directOrInstructLoc + 2].stringValue! + ":"]!) + " "
+}
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+memLoc += 3
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n" + "..........Wrong Or No Parameters for Instruction" + "\n"
+numbError += 1
+}
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += "\n" + "..........Wrong Or No Parameters for Instruction" + "\n"
+numbError += 1
+}
+}
+}
+
+func checkDoubleRInstruct(directOrInstructLoc: Int,firstPass: Bool) {
+if (String(tokens[tokens.startIndex].type) == "LabelDefinition" && firstPass) {
+symbTable[tokens[tokens.startIndex].stringValue!] = memLoc
+}
+if (tokens.endIndex > 1) {
+if (String(tokens[directOrInstructLoc + 1].type) == "Register" && String(tokens[directOrInstructLoc + 2].type) == "Register") {
+if(!firstPass){
+writeLstFile += String(memLoc) + ": "
+writeLstFile += String(instructions[tokens[directOrInstructLoc].stringValue!]!) + " "
+writeLstFile += String(tokens[directOrInstructLoc + 1].intValue!) + " "
+writeLstFile += String(tokens[directOrInstructLoc + 2].intValue!) + " "
+}
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n"
+memLoc += 3
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n" + "..........Wrong Or No Parameters for Instruction" + "\n"
+numbError += 1
+}
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += "\n" + "..........Wrong Or No Parameters for Instruction" + "\n"
+numbError += 1
+}
+}
+}
+
+func checkIntegerInstruct(directOrInstructLoc: Int,firstPass: Bool) {
+if (String(tokens[tokens.startIndex].type) == "LabelDefinition" && firstPass) {
+symbTable[tokens[tokens.startIndex].stringValue!] = memLoc
+}
+if (String(tokens[directOrInstructLoc + 1].type) == "ImmediateInteger" && directOrInstructLoc == tokens.endIndex - 2) {
+if(!firstPass){
+writeLstFile += String(memLoc) + ": "
+writeLstFile += String(instructions[tokens[directOrInstructLoc].stringValue!]!) + " "
+writeLstFile += String(tokens[directOrInstructLoc + 1].intValue!) + " "
+}
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n"
+memLoc += 2
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n" + "..........Wrong Or No Parameters for Instruction" + "\n"
+numbError += 1
+}
+}
+
+func checkLabelInstruct(directOrInstructLoc: Int,firstPass: Bool) {
+if (String(tokens[tokens.startIndex].type) == "LabelDefinition" && firstPass) {
+symbTable[tokens[tokens.startIndex].stringValue!] = memLoc
+}
+if (tokens.endIndex > 1) {
+if (String(tokens[directOrInstructLoc + 1].type) == "Label" && directOrInstructLoc == tokens.endIndex - 2) {
+if(!firstPass){
+writeLstFile += String(memLoc) + ": "
+writeLstFile += String(instructions[tokens[directOrInstructLoc].stringValue!]!) + " "
+writeLstFile += String(symbTable[tokens[directOrInstructLoc + 1].stringValue! + ":"]!) + " "
+}
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n"
+memLoc += 2
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n" + "..........Wrong Or No Parameters for Instruction" + "\n"
+numbError += 1
+}
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += "\n" + "..........Wrong Or No Parameters for Instruction" + "\n"
+numbError += 1
+}
+}
+}
+
+func checkSingleRInstruct(directOrInstructLoc: Int,firstPass: Bool) {
+if (String(tokens[tokens.startIndex].type) == "LabelDefinition" && firstPass) {
+symbTable[tokens[tokens.startIndex].stringValue!] = memLoc
+}
+if (tokens.endIndex > 1) {
+if (String(tokens[directOrInstructLoc + 1].type) == "Register" && directOrInstructLoc == tokens.endIndex - 2) {
+if(!firstPass){
+writeLstFile += String(memLoc) + ": "
+writeLstFile += String(instructions[tokens[directOrInstructLoc].stringValue!]!) + " "
+writeLstFile += String(tokens[directOrInstructLoc + 1].intValue!) + " "
+}
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n"
+memLoc += 2
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n" + "..........Wrong Or No Parameters for Instruction" + "\n"
+numbError += 1
+}
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += "\n" + "..........Wrong Or No Parameters for Instruction" + "\n"
+numbError += 1
+}
+}
+}
+
+func matchingDirParams(directParam: String?, directOrInstructLoc: Int,firstPass: Bool) {
+if (directParam == nil) {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += "\n" + "..........Illegal directive" + "\n"
+numbError += 1
+}
+}
+else if (directParam == "l" && tokens.endIndex > 1) {
+checkLabel(tokens, directOrInstructLoc: directOrInstructLoc, firstPass: firstPass)
+}
+else if (directParam == "l" && tokens.endIndex == 1) {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += "\n" + "..........Expected Label" + "\n"
+numbError += 1
+}
+}
+else if (directParam == "") {
+checkBlank(directOrInstructLoc, firstPass: firstPass)
+}
+else if (directParam == "i" && tokens.endIndex > 1) {
+checkInt(tokens, directOrInstructLoc: directOrInstructLoc, firstPass: firstPass)
+}
+else if (directParam == "i" && tokens.endIndex == 1) {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += "\n" + "..........Expected Immediate Integer" + "\n"
+numbError += 1
+}
+}
+else if (directParam == "t" && tokens.endIndex > 1) {
+checkTup(directOrInstructLoc, firstPass: firstPass)
+}
+else if (directParam == "t" && tokens.endIndex == 1) {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += "\n" + "..........Expected Immediate Tuple" + "\n"
+numbError += 1
+}
+}
+else if (directParam == "s" && tokens.endIndex > 1) {
+checkString(directOrInstructLoc, firstPass: firstPass)
+}
+else if (directParam == "s" && tokens.endIndex == 1) {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += "\n" + "..........Expected Immediate String" + "\n"
+numbError += 1
+}
+}
+}
+
+func checkString(directOrInstructLoc: Int,firstPass: Bool) {
+if (String(tokens[tokens.startIndex].type) == "LabelDefinition" && firstPass) {
+symbTable[tokens[tokens.startIndex].stringValue!] = memLoc
+}
+if (String(tokens[directOrInstructLoc + 1].type) == "ImmediateString" && directOrInstructLoc == tokens.endIndex - 2) {
+
+//if(!firstPass){
+//writeLstFile += String(memLoc) + ": "
+//writeLstFile += String(tokens[directOrInstructLoc + 1].stringValue! + ":") + " "
+//}
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n"
+memLoc += tokens[directOrInstructLoc + 1].stringValue!.count - 1
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n" + "..........Wrong Parameters for Directive" + "\n"
+numbError += 1
+}
+}
+
+func checkTup(directOrInstructLoc: Int,firstPass: Bool) {
+if (String(tokens[tokens.startIndex].type) == "LabelDefinition" && firstPass) {
+symbTable[tokens[tokens.startIndex].stringValue!] = memLoc
+}
+if (String(tokens[directOrInstructLoc + 1].type) == "ImmediateTuple" && directOrInstructLoc == tokens.endIndex - 2) {
+
+//if(!firstPass){
+//writeLstFile += String(memLoc) + ": "
+//writeLstFile += String(instructions[tokens[directOrInstructLoc].stringValue!]!) + " "
+//writeLstFile += String(symbTable[tokens[directOrInstructLoc + 1].stringValue! + ":"]!) + " "
+//writeLstFile += String(tokens[directOrInstructLoc + 2].intValue!) + " "
+//}
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n"
+memLoc += 5
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n" + "..........Wrong Parameters for Directive" + "\n"
+numbError += 1
+}
+}
+
+func checkInt(tokens : [Token], directOrInstructLoc: Int,firstPass: Bool) {
+if (String(tokens[tokens.startIndex].type) == "LabelDefinition" && firstPass) {
+symbTable[tokens[tokens.startIndex].stringValue!] = memLoc
+}
+if (String(tokens[directOrInstructLoc + 1].type) == "ImmediateInteger") {
+//if(!firstPass){
+//writeLstFile += String(memLoc) + ": "
+//writeLstFile += String(instructions[tokens[directOrInstructLoc].stringValue!]!) + " "
+//writeLstFile += String(tokens[directOrInstructLoc].intValue!) + " "
+//}
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+memLoc += 1
+writeLstFile += "\n"
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n" + "..........Wrong Parameters for Directive" + "\n"
+numbError += 1
+}
+}
+
+func checkBlank(directOrInstructLoc: Int,firstPass: Bool) {
+if (tokens.endIndex > 1) {
+for output in tokens {
+writeLstFile += output.stringValue!
+}
+writeLstFile += "\n" + "..........Wrong Parameters for Directive" + "\n"
+numbError += 1
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue! + "\n"
+}
+}
+}
+
+func checkBlankInstruct(directOrInstructLoc : Int,firstPass: Bool) {
+if (directOrInstructLoc == 1) {
+for output in tokens {
+writeLstFile += output.stringValue! + " "
+}
+writeLstFile += "\n"
+}
+else {
+memLoc += 1
+for output in tokens {
+writeLstFile += output.stringValue! + "\n"
+writeLstFile += "\n" + "Illegal parameters for instruction" + "\n"
+numbError += 1
+}
+}
+}
+
+func checkLabel(tokens : [Token], directOrInstructLoc: Int,firstPass: Bool) {
+  if (String(tokens[directOrInstructLoc + 1].type) == "Label" && directOrInstructLoc == tokens.endIndex - 2) {
+for output in tokens {
+  writeLstFile += output.stringValue!
+  writeLstFile += " "
+}
+writeLstFile += "\n"
+}
+else {
+for output in tokens {
+writeLstFile += output.stringValue!
+writeLstFile += " "
+}
+writeLstFile += "\n" + "..........Wrong Parameters for Directive" + "\n"
+numbError += 1
+}
+}
+}
+
+
